@@ -12,4 +12,12 @@ app.use(express.urlencoded({extended:true}));
 
 app.use(express.static("public"));
 app.use(cookieParser());
+
+//routes import
+import userRouter from "./routes/user.routes.js";
+
+//router declaration
+app.use("/api/v1/users",userRouter);
+//http://localhost:port/users/register(dynamic)
+
 export {app}
