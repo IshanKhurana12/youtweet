@@ -24,8 +24,8 @@ description:{
     required:true
 },
 duration:{
-    type:number,//cloudanary will give some details about the veio we will get this fgrom there
-    required:true
+    type:Number,//cloudanary will give some details about the veio we will get this fgrom there
+    required:false
 },
 views:{
     type:Number,
@@ -41,4 +41,4 @@ isPublished:{
 
 
 videoSchema.plugin(mongooseAggregatePaginate)
-export const Video=mongoose.model("Viedo",videoSchema);
+export const Video=mongoose.model("Video",videoSchema);
