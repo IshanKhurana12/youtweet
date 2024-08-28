@@ -36,8 +36,8 @@ router.route("/register").post(
     router.route("/updatecoverimage").patch(verifyJWT,upload.single("coverImage"),updateCoverImage);
 
 
-    //using params :username dynamic 
-    router.route("/c/:username").get(verifyJWT,getUserChannelReport);
+    //using params :username dynamic req.params
+    router.route("/channel/:username").get(verifyJWT,getUserChannelReport);
 
  
     router.route("/watchhistory").get(verifyJWT,getWatchHistory);

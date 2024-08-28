@@ -154,12 +154,121 @@ const deleteVideo=asyncHandler(async(req,res)=>{
 
 
 
-const editVideoData=asyncHandler(async(req,res)=>{
 
+
+const editVideoData=asyncHandler(async(req,res)=>{
+//what to do-
+//get the data from params
+//we will verify the user using middleware so no bt
+//pipeline to find the exact user from the video model
+// then match the req.user with the video owner 
+//if mathches then updte else err
+
+const {title,description}=req.body;
+const {videoid}=req.params;
+
+if(!videoid){
+    throw new ApiError(400,"video id is required");
+}
+
+
+const result=await Video.aggregate([
+    {
+        $lookup:{
+            from:"users",
+            localField:"owner",
+            foreignField:"_id",
+            as:"ownerDetails"
+        }
+    
+    },
+    
+        {
+            $unwind:"$ownerDetails"
+        },
+
+        {
+            $match:{
+                "_id":new mongoose.Types.ObjectId(videoid),
+                "ownerDetails._id":new mongoose.Types.ObjectId(req.user._id),
+            }
+        }
+])
+
+
+//now we have the pipeline to match the user and the video with the current user and the pased video id 
+
+if(result.length===0){
+    throw new ApiError(500,"errow while finding the file or the user is not same");
+}
+
+
+const updateObject = {};
+    if (title) {
+        updateObject.title = title;
+    }
+    if (description) {
+        updateObject.description = description;
+    }
+
+const updateResult=await Video.findByIdAndUpdate(videoid,{
+    $set:updateObject
+},{
+    new:true
+})
+
+if(!updateResult){
+    throw new ApiError(500,"Error occured while updating the video details");
+}
+
+
+return res.status(200).json(new ApiResponse(200,updateResult,"successfully updated the video details"));
+
+
+    
+})
+
+
+const getallCommentsofavideo=asyncHandler(async(req,res)=>{
+
+    const {videoid}=req.params;
+
+    if(!videoid){
+        throw new ApiError(404,"videoid is required");
+    }
+
+    //find the video
+    const result =await Video.aggregate([
+        {
+            $match:{
+                "_id":new mongoose.Types.ObjectId(videoid)
+            }
+        },{
+            $lookup:{
+                from:"comments",
+                localField:"allvideocomments",
+                foreignField:"_id",
+                as:"allcomments"
+            }
+        },{
+            $unwind:"$allcomments"
+        },{
+            $project:{
+                allcomments:1
+            }
+        }
+    ])
+
+    if(result.length===0){
+        throw new ApiError(500,"no comments found or the id is not correct");
+    }
+    console.log(result);
+    return res.status(200).json(new ApiResponse(200,result,"successfully fetched the comments"));
 })
 
 
 
-export {uploadvideo,getAllVideos,deleteVideo,editVideoData}
+export {uploadvideo,getAllVideos,deleteVideo,editVideoData,getallCommentsofavideo}
+
 
 

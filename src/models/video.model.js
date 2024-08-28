@@ -35,6 +35,10 @@ isPublished:{
      type:Boolean,
      default:true
 },
+allvideocomments:[{
+    type:mongoose.Types.ObjectId,
+    ref:"Comment"
+}]
 
     }
 ,{timestamps:true});

@@ -97,17 +97,9 @@ const registerUser=asyncHandler(async(req,res)=>{
 
 
 const loginUser=asyncHandler(async(req,res)=>{
-        //req body-> data
-        //username or email
-        //find the user
-        //pasword checl
-        //access and refresh tokem
-        //send cookie
-        //res
-
+       
         const {email,username,password}=req.body;
 
-        console.log(username);
 
         if(!email && !username){
             throw new ApiError(400,"username or email is required");
@@ -154,6 +146,7 @@ const loginUser=asyncHandler(async(req,res)=>{
 
 
     const logoutUser=asyncHandler(async(req,res)=>{
+      
        await User.findByIdAndUpdate(req.user._id,{
             $unset:{refreshToken:1}
         },{
@@ -243,8 +236,8 @@ try {
     })
 
 
-    const getCurrentUser=asyncHandler(async()=>{
-            return res.status(200).json(200,req.user,"current user fetched successfully");
+    const getCurrentUser=asyncHandler(async(req,res)=>{
+            return res.status(200).json(new ApiResponse(200,req.user,"successffully fetchesd current user"))
     })
 
 
@@ -328,7 +321,7 @@ try {
     })
 
 
-const getUserChannelReport=asyncHandler(async()=>{
+const getUserChannelReport=asyncHandler(async(req,res)=>{
     const {username}=req.params
 
     if(!username?.trim()){
