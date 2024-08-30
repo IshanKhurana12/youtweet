@@ -49,7 +49,7 @@ const registerUser=asyncHandler(async(req,res)=>{
     if(existingUser){
         throw new ApiError(409,"username with email or username exist");
     }
-
+    console.log(req.files);
     const avatarLocalPath=req.files?.avatar[0]?.path;
     let coverLocalPath
     if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length>0){
@@ -264,7 +264,7 @@ try {
     })
 
 
-    const updateAvatar=asyncHandler(async()=>{
+    const updateAvatar=asyncHandler(async(req,res)=>{
         const avatarLocalPath=req.file?.path;
 
 
@@ -389,47 +389,71 @@ const getUserChannelReport=asyncHandler(async(req,res)=>{
 
 })
 
-const getWatchHistory=asyncHandler(async()=>{
-    const user=await User.aggregate([
+const getWatchHistory=asyncHandler(async(req,res)=>{
+
+    const user = await User.aggregate([
         {
-            $match:{
-                _id:new mongoose.Types.ObjectId(req.user._id)
-            }
-        },{
-            $lookup:{
-                from:"videos",
-                localField:"watchHistory",
-                foreignField:"_id",
-                as:"watchHistory",
-                pipeline:[
+          $match: {
+            _id: new mongoose.Types.ObjectId(req.user._id),
+          },
+        },
+        {
+          $lookup: {
+            from: 'videos',
+            localField: 'watchHistory',
+            foreignField: '_id',
+            as: 'watchHistory',
+            pipeline: [
+              {
+                $lookup: {
+                  from: 'users',
+                  localField: 'owner',
+                  foreignField: '_id',
+                  as: 'owner',
+                  pipeline: [
                     {
-                        $lookup:{
-                            from:"users",
-                            localField:"owner",
-                            foreignField:"_id",
-                            as:"owner",
-                            pipeline:[{
-                                $project:{
-                                    fullName:1,
-                                    username:1,
-                                    avatar:1
-                                }
-                            }]
-                        }
-                        },{
-                            $addFields:{
-                                owner:{
-                                    $first:"$owner"
-                                }
-                            }
-                    }
-                ]
-            }
-        }
-    ])
+                      $project: {
+                        _id: 1,         // Include only user ID
+                        username: 1,    // Include only username
+                        avatar: 1       // Include only avatar
+                        // Exclude other sensitive fields like password
+                      },
+                    },
+                  ],
+                },
+              },
+              {
+                $addFields: {
+                  owner: {
+                    $arrayElemAt: ['$owner', 0],
+                  },
+                },
+              },
+              {
+                $project: {
+                  // Include only necessary video fields
+                  _id: 1,             // Video ID
+                  title: 1,           // Video title
+                  description: 1,     // Video description
+                  thumbnail: 1,       // Video thumbnail
+                  videoFile: 1,       // Video file URL or path
+                  owner: 1,           // Owner details
+                },
+              },
+            ],
+          },
+        },
+        {
+          $project: {
+            // Include only user-related fields and the modified watchHistory
+            _id: 0,              // Exclude user ID from the output
+            watchHistory: 1,     // Include the modified watchHistory array
+          },
+        },
+      ]);
 
-
-    return res.status(200).json(new ApiResponse(200,user[0].getWatchHistory,"watch history fetched successfully"));
+    return res.status(200).json(new ApiResponse(200,user[0].watchHistory,"watch history fetched successfully"));
 })
+
 
 export {registerUser,loginUser,logoutUser,refreshAccessToken,getCurrentUser,changeCurrentPassword,updateAvatar,getWatchHistory,updateDetails,updateCoverImage,getUserChannelReport};

@@ -110,6 +110,35 @@ return res.status(200)
     }
 })
 
+const getfeed=asyncHandler(async(req,res)=>{
+    const page = parseInt(req.query.page) || 1; // Default to page 1 if not provided
+    const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page if not provided
+
+    try {
+        // Calculate the number of items to skip
+        const skip = (page - 1) * limit;
+
+        // Fetch the videos with pagination
+        const videos = await Video.find()
+            .skip(skip)
+            .limit(limit);
+
+        // Optionally, you can also count the total number of documents for pagination info
+        const total = await Video.countDocuments();
+
+        // Send the response with the videos and pagination info
+        res.status(200).json(  new ApiResponse(200,{
+            data: videos,
+            pagination: {
+                total,
+                page,
+                pages: Math.ceil(total / limit)
+            }
+        },"fetched with limit and skip"))
+    } catch (error) {
+       throw new ApiError(500,"error occured while fetching");
+    }
+})
 
 const deleteVideo=asyncHandler(async(req,res)=>{
     const {videoid}=req.params;
@@ -153,7 +182,18 @@ const deleteVideo=asyncHandler(async(req,res)=>{
 })
 
 
+const getsinglevideo=asyncHandler(async(req,res)=>{
+    const {id}=req.params;
 
+    if(!id){
+        throw new ApiError(400,"video id is required");
+    }
+    const result =await Video.findById(id).populate('owner', 'username avatar email');;
+    if(!result){
+        throw new ApiError(500,"some error occured while fetching or the video id does not exist");
+    }
+    return res.status(200).json(new ApiResponse(200,result,"video fetched successfuly"));
+})
 
 
 const editVideoData=asyncHandler(async(req,res)=>{
@@ -252,9 +292,23 @@ const getallCommentsofavideo=asyncHandler(async(req,res)=>{
             }
         },{
             $unwind:"$allcomments"
+        }, {
+            $lookup: {
+                from: "users",
+                localField: "allcomments.owner", // Assuming `user` is the field in `comments` that holds the user's ID
+                foreignField: "_id",
+                as: "alluser"
+            }
+        },
+        {
+            $unwind: "$alluser"
         },{
             $project:{
-                allcomments:1
+                allcomments:1,
+                "alluser.username":1,
+                "alluser.avatar":1
+         
+              
             }
         }
     ])
@@ -262,13 +316,13 @@ const getallCommentsofavideo=asyncHandler(async(req,res)=>{
     if(result.length===0){
         throw new ApiError(500,"no comments found or the id is not correct");
     }
-    console.log(result);
+    
     return res.status(200).json(new ApiResponse(200,result,"successfully fetched the comments"));
 })
 
 
 
-export {uploadvideo,getAllVideos,deleteVideo,editVideoData,getallCommentsofavideo}
+export {uploadvideo,getAllVideos,deleteVideo,getfeed,editVideoData,getallCommentsofavideo,getsinglevideo}
 
 
 

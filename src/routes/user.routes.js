@@ -31,7 +31,7 @@ router.route("/register").post(
     router.route("/updatedetails").patch(verifyJWT,updateDetails);
 
 
-    router.route("/updateavater").patch(verifyJWT,upload.single("avatar"),updateAvatar);
+    router.route("/updateavatar").patch(verifyJWT,upload.single("avatar"),updateAvatar);
 
     router.route("/updatecoverimage").patch(verifyJWT,upload.single("coverImage"),updateCoverImage);
 
