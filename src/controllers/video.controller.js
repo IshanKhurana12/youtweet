@@ -313,9 +313,7 @@ const getallCommentsofavideo=asyncHandler(async(req,res)=>{
         }
     ])
 
-    if(result.length===0){
-        throw new ApiError(500,"no comments found or the id is not correct");
-    }
+  
     
     return res.status(200).json(new ApiResponse(200,result,"successfully fetched the comments"));
 })

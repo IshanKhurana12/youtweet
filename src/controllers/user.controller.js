@@ -100,7 +100,7 @@ const loginUser=asyncHandler(async(req,res)=>{
        
         const {email,username,password}=req.body;
 
-
+       
         if(!email && !username){
             throw new ApiError(400,"username or email is required");
         }
@@ -113,7 +113,7 @@ const loginUser=asyncHandler(async(req,res)=>{
             throw new ApiError(400,"no user found register the user first")
                 }
         
-        const isPasswordValid=user.isPasswordCorrect(password);
+        const isPasswordValid=await user.isPasswordCorrect(password);
 
         if(!isPasswordValid)
         {
@@ -129,6 +129,7 @@ const loginUser=asyncHandler(async(req,res)=>{
         secure:true
       }
 
+      
       return res
       .status(200)
       .cookie("accessToken",accessToken,options)
