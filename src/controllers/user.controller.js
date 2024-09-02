@@ -456,5 +456,38 @@ const getWatchHistory=asyncHandler(async(req,res)=>{
     return res.status(200).json(new ApiResponse(200,user[0].watchHistory,"watch history fetched successfully"));
 })
 
+const getwatchhistory=asyncHandler(async(req,res)=>{
+  const {_id}=req.user;
+ const watchhistory= await User.aggregate([
+    { $match: { _id: new mongoose.Types.ObjectId(_id) } },
+    {
+        $lookup: {
+            from: 'videos', // The name of the collection in MongoDB
+            localField: 'watchHistory',
+            foreignField: '_id',
+            as: 'watchHistoryDetails'
+        }
+    },
+    { $unwind:  {
+      path: '$watchHistoryDetails',
+      preserveNullAndEmptyArrays: true // Optional: Include users with empty watch history
+  },
+   },
+    {
+        $project: {
+'watchHistoryDetails._id':1,
+'watchHistoryDetails.title':1,
+'watchHistoryDetails.thumbnail':1
+        }
+    }
+])
 
-export {registerUser,loginUser,logoutUser,refreshAccessToken,getCurrentUser,changeCurrentPassword,updateAvatar,getWatchHistory,updateDetails,updateCoverImage,getUserChannelReport};
+console.log(watchhistory);
+    return res.status(200).json(new ApiResponse(200,watchhistory,"watched history fetched successfully"));
+})
+
+
+
+
+
+export {registerUser,loginUser,logoutUser,refreshAccessToken,getCurrentUser,getwatchhistory,changeCurrentPassword,updateAvatar,getWatchHistory,updateDetails,updateCoverImage,getUserChannelReport};

@@ -29,7 +29,7 @@ const subscribe=asyncHandler(async(req,res)=>{
         }
        
         // Create new subscription
-        const newSubscription = new Subscription({
+        const newSubscription =await new Subscription({
             subscriber: req.user._id,
             channel: channelId
         });
@@ -90,7 +90,7 @@ const unsubscribe=asyncHandler(async(req,res)=>{
         throw new ApiError(400,"channel id is required");
     }
 
-    const channel=User.findById(channelId);
+    const channel=await User.findById(channelId);
     if(!channel){
         throw new ApiError(500,"channel does not exist or the id is wrong");
     }

@@ -5,7 +5,7 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import mongoose from "mongoose";
-import e from "express";
+import { User } from "../models/user.model.js";
 
 const uploadvideo=asyncHandler(async(req,res)=>{
     
@@ -184,14 +184,43 @@ const deleteVideo=asyncHandler(async(req,res)=>{
 
 const getsinglevideo=asyncHandler(async(req,res)=>{
     const {id}=req.params;
+    //what i want is
+    //i will get the current user req.user._id
+    //and then i will find him then add this video id inside his watchhistory so that i can 
+    // further populate it and show  in watch history
+    const {_id}=req.user;
 
     if(!id){
         throw new ApiError(400,"video id is required");
     }
-    const result =await Video.findById(id).populate('owner', 'username avatar email');;
+
+   
+
+    const result =await Video.findById(id).populate('owner', 'username avatar email');
+
+    
+    
+    
     if(!result){
         throw new ApiError(500,"some error occured while fetching or the video id does not exist");
     }
+
+
+    const viewer = await User.findByIdAndUpdate(
+        _id,
+        {
+            $push: { watchHistory: id }
+        },
+        {
+            new: true,
+            runValidators: true // Ensure the update operation adheres to schema validations
+        }
+    )
+   
+    if (!viewer) {
+        throw new ApiError(500, "Failed to update watch history");
+    }
+    console.log("added");  
     return res.status(200).json(new ApiResponse(200,result,"video fetched successfuly"));
 })
 
