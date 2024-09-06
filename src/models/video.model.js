@@ -1,4 +1,4 @@
-import mongoose,{Schema} from "mongoose";
+import mongoose,{Schema, mongo} from "mongoose";
 import mongooseAggregatePaginate from "mongoose-aggregate-paginate-v2";
 const videoSchema=new mongoose.Schema(
     {
@@ -34,6 +34,14 @@ views:{
 isPublished:{
      type:Boolean,
      default:true
+},
+likes:[{
+    type:mongoose.Types.ObjectId,
+    ref:"Like"
+}],
+likecount:{
+    type:Number,
+    default:0
 },
 allvideocomments:[{
     type:mongoose.Types.ObjectId,

@@ -36,7 +36,6 @@ const subscribe=asyncHandler(async(req,res)=>{
 
         await newSubscription.save();
 
-        console.log("sub success");
         res.status(200).json(new ApiResponse(200,"subscribed"));
     } catch (error) {
         console.log(error);
@@ -69,7 +68,7 @@ const getsubstatus = asyncHandler(async (req, res) => {
         });
 
         // Respond based on whether the user is subscribed or not
-        console.log("status",result);
+    
         if (!result) {
             return res.status(200).json(new ApiResponse(200, { isSubscribed: false }, "Not subscribed"));
         }
@@ -108,7 +107,7 @@ const unsubscribe=asyncHandler(async(req,res)=>{
          throw new ApiError(404,"subscription not found");
      }
 
-     console.log("unsub success");
+    
      return res.status(200).json(new ApiResponse(200,result,"deleted"));
  
 
@@ -126,4 +125,15 @@ const unsubscribe=asyncHandler(async(req,res)=>{
 })
 
 
-export {subscribe,unsubscribe,getsubstatus};
+
+
+const getsubcount=asyncHandler(async(req,res)=>{
+    const {_id}=req.user._id;
+    //now i want to see how many subscribers have this channel subscribed 
+    const alldata=await Subscription.countDocuments({channel:_id});
+    console.log(alldata);
+    return res.status(200).json(new ApiResponse(200,alldata));
+})
+
+
+export {subscribe,unsubscribe,getsubstatus,getsubcount};

@@ -1,24 +1,38 @@
 import mongoose from "mongoose";
 
 const tweetSchema=new mongoose.Schema({
-    post:{
+    tweet:{
         type:String,
         required:true
     },
-    postowner:[{
+    tweetowner:[{
         type:mongoose.Types.ObjectId,
         ref:"User"
     }],
+    title:{
+        type:String,
+        required:true
+    },
+    description:{
+        type:String,
+        required:true
+    },
+
     comment:[
         {
         type:mongoose.Types.ObjectId,
         ref:"Comment"
         }],
-        
 
+        likes:[{
+            type:mongoose.Types.ObjectId,
+            ref:"Like"
+        }],
 
-
-
+        likecount:{
+            type:Number,
+            default:0
+        }
 },{timestamps:true});
 
 

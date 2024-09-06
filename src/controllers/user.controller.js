@@ -6,7 +6,76 @@ import { uploadOnCloudinary } from "../utils/cloudinary.js";
 import jwt, { decode } from "jsonwebtoken"
 import multer from "multer";
 import mongoose from "mongoose";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
+import {google} from  "googleapis"
+import { error } from "console";
 
+//mail verify feature
+const otpStorage = {};
+function generateOTP() {
+    const otp = crypto.randomInt(100000, 999999); 
+    return otp;
+}
+
+const oauth2Client = new google.auth.OAuth2(
+    process.env.OAUTHCLIENT_ID,     
+    process.env.OAUTHCLIENT_SECRET,
+    process.env.OAUTHREDIRECT_URI   
+  );
+
+  oauth2Client.setCredentials({
+    refresh_token: process.env.OAUTHREFRESH_TOKEN // Refresh token obtained from OAuth2 consent
+  });
+  
+
+  async function sendMail(email) {
+    try {
+        const otp=generateOTP();
+      const accessToken = await oauth2Client.getAccessToken(); // Get new access token
+  
+      // Create a Nodemailer transporter using OAuth2
+      const transporter = nodemailer.createTransport({
+        service: 'gmail',
+        auth: {
+          type: 'OAuth2',
+          user: process.env.USER, // Your Gmail email
+          clientId: process.env.OAUTHCLIENT_ID,
+          clientSecret: process.env.OAUTHCLIENT_SECRET,
+          refreshToken: process.env.OAUTHREFRESH_TOKEN,
+          accessToken: accessToken.token // OAuth2 access token
+        }
+      });
+  
+      // Email options
+      const mailOptions = {
+        from: process.env.USER,
+        to: email,
+        subject: 'Test Email with OAuth2',
+        text: `your otp for verification is ${otp} `
+      };
+  
+      // Send the email
+      const result = await transporter.sendMail(mailOptions);
+      otpStorage[email] = otp;
+      setTimeout(() => delete otpStorage[email], 5 * 60 * 1000);
+      return otp;
+    } catch (error) {
+      console.error('Error sending email:', error);
+    }
+  }
+
+
+
+
+function otpchecker(otp,userotp){
+    if(otp==userotp){
+        return true;
+    }
+    else{
+        return false;
+    }
+}
 
 const generateAccessAndRefreshToken=async(userId)=>{
     try {
@@ -33,8 +102,8 @@ const registerUser=asyncHandler(async(req,res)=>{
     //check for user creation 
     //return res
     //else err
-  
-    const {fullName,email,username,password }=req.body
+   
+    const {fullName,email,username,password}=req.body
 
     if(
         [fullName,email,username,password].some((field)=>field?.trim()==="")
@@ -49,7 +118,10 @@ const registerUser=asyncHandler(async(req,res)=>{
     if(existingUser){
         throw new ApiError(409,"username with email or username exist");
     }
-    console.log(req.files);
+    
+    
+
+
     const avatarLocalPath=req.files?.avatar[0]?.path;
     let coverLocalPath
     if(req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length>0){
@@ -71,6 +143,7 @@ const registerUser=asyncHandler(async(req,res)=>{
    }
 
 
+
   const user=await User.create({
     fullName,
     avatar:avatar.url,
@@ -80,19 +153,86 @@ const registerUser=asyncHandler(async(req,res)=>{
     username:username.toLowerCase()
    })
 
-
   const createdUser=await User.findById(user._id).select("-password -refreshToken")
+
 
   if(!createdUser){
     throw new ApiError(500,"something went wrong while registering the user");
   }
 
 
+
+
   return res.status(201).json(
     new ApiResponse(200,createdUser,"user registered Successfully")
   )
 
+
+
+
 })
+
+
+
+const mailsend=asyncHandler(async(req,res)=>{
+    
+    const result=await User.findById(req.user?._id);
+    if(!result){
+        throw new ApiError(500,"error finding user");
+    }
+
+
+  const generatedotp= await sendMail(result.email);
+  if(generatedotp){
+     console.log("otp is sent");
+  
+    return res.status(200).json(new ApiResponse(200,true,"otp sent"));
+  }
+
+  
+  throw new ApiError(401,"error sending otp")
+  
+})
+
+
+const setverified = asyncHandler(async (req, res) => {
+    try {
+      const { email, otp } = req.body; // Extract email and otp from the request body
+      const storedOtp = otpStorage[email]; // Fetch OTP from in-memory storage
+  
+      if (!storedOtp) {
+        return res.status(400).json({ message: "OTP expired or invalid email." });
+      }
+      
+      
+      const isOtpValid = otpchecker(storedOtp, otp); // Check if the provided OTP matches
+    
+      if (!isOtpValid) {
+        return res.status(400).json({ message: "OTP is incorrect, please try again." });
+      }
+  
+      // Update user verification status
+      const verification = await User.findByIdAndUpdate(req.user?._id, {
+        $set: { verify: true },
+      });
+  
+      if (!verification) {
+        throw new ApiError(500, "Error updating verification status.");
+      }
+  
+      // Remove OTP from storage after successful verification
+      delete otpStorage[email];
+  
+      // Respond to the client
+      res.status(200).json({ message: "OTP verified, user is now verified." });
+  
+    } catch (error) {
+      // Handle errors
+      res.status(error.statusCode || 500).json({ message: error.message });
+    }
+  });
+  
+
 
 
 
@@ -243,24 +383,26 @@ try {
 
 
 
-    const updateDetails=asyncHandler(async()=>{
+    const updateDetails=asyncHandler(async(req,res)=>{
         const {fullName}=req.body
+        const {email}=req.body
 
-
-        if(!fullName){
-            throw new ApiError(400,"fullName is required");
+        const updateObject = {};
+        if (fullName) {
+            updateObject.fullName = fullName;
+        }
+        if (email) {
+            updateObject.email = email;
         }
 
-        //find the user and update
-        const user=User.findByIdAndUpdate(req.user?._id,{
-            $set:{
-                fullName:fullName
-            }
+        
+        const user=await User.findByIdAndUpdate(req.user?._id,{
+            $set:updateObject
         },{
             new:true
         }).select("-password");
 
-        return res.status(200).json(new ApiResponse(200,"updated the user's Full name "));
+        return res.status(200).json(new ApiResponse(200,"updated the user's Full name and email"));
 
     })
 
@@ -293,22 +435,23 @@ try {
 
     })
 
-    const updateCoverImage=asyncHandler(async()=>{
-            const {coverImageLocalPath}=req.file?.path
+    const updateCoverImage=asyncHandler(async(req,res)=>{
+            const coverImageLocalPath=req.file?.path
 
 
             if(!coverImageLocalPath){
-                return ApiError(400,"no cover image provided");
+                throw new ApiError(400,"no cover image provided");
             }
 
 
-            const coverImage=uploadOnCloudinary(coverImageLocalPath);
+            const coverImage=await uploadOnCloudinary(coverImageLocalPath);
+
             if(!coverImage.url){
                 throw new ApiError(400,"cover image is required");
                 }
 
 
-                User.findByIdAndUpdate(req.user?._id,
+               await User.findByIdAndUpdate(req.user?._id,
                     {
                         $set:{
                             coverImage:coverImage.url
@@ -438,7 +581,7 @@ const getWatchHistory=asyncHandler(async(req,res)=>{
                   description: 1,     // Video description
                   thumbnail: 1,       // Video thumbnail
                   videoFile: 1,       // Video file URL or path
-                  owner: 1,           // Owner details
+                  owner: 1
                 },
               },
             ],
@@ -447,8 +590,10 @@ const getWatchHistory=asyncHandler(async(req,res)=>{
         {
           $project: {
             // Include only user-related fields and the modified watchHistory
-            _id: 0,              // Exclude user ID from the output
-            watchHistory: 1,     // Include the modified watchHistory array
+            _id: 0,      
+            views:1,        // Exclude user ID from the output
+            watchHistory: 1, 
+           
           },
         },
       ]);
@@ -490,4 +635,4 @@ console.log(watchhistory);
 
 
 
-export {registerUser,loginUser,logoutUser,refreshAccessToken,getCurrentUser,getwatchhistory,changeCurrentPassword,updateAvatar,getWatchHistory,updateDetails,updateCoverImage,getUserChannelReport};
+export {mailsend,setverified,registerUser,loginUser,logoutUser,refreshAccessToken,getCurrentUser,getwatchhistory,changeCurrentPassword,updateAvatar,getWatchHistory,updateDetails,updateCoverImage,getUserChannelReport};

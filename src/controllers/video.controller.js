@@ -6,7 +6,7 @@ import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import mongoose from "mongoose";
 import { User } from "../models/user.model.js";
-
+import { Like } from "../models/likes.model.js";
 const uploadvideo=asyncHandler(async(req,res)=>{
     
     //check for user -using middleware so not neccesary
@@ -96,7 +96,8 @@ const getAllVideos=asyncHandler(async(req,res)=>{
                 title:1,
                 description:1,
                 videoFile:1,
-                thumbnail:1
+                thumbnail:1,
+                views:1
             }
         }
       ]);
@@ -110,35 +111,37 @@ return res.status(200)
     }
 })
 
-const getfeed=asyncHandler(async(req,res)=>{
-    const page = parseInt(req.query.page) || 1; // Default to page 1 if not provided
-    const limit = parseInt(req.query.limit) || 10; // Default to 10 items per page if not provided
+const getfeed = asyncHandler(async (req, res) => {
+    const page = parseInt(req.query.page, 10) || 1;
+    const limit = parseInt(req.query.limit, 10) || 10;
 
     try {
-        // Calculate the number of items to skip
         const skip = (page - 1) * limit;
 
-        // Fetch the videos with pagination
         const videos = await Video.find()
+            .populate('owner')
             .skip(skip)
             .limit(limit);
 
-        // Optionally, you can also count the total number of documents for pagination info
         const total = await Video.countDocuments();
 
-        // Send the response with the videos and pagination info
-        res.status(200).json(  new ApiResponse(200,{
+        // Determine if there are more items to fetch
+        const hasMore = skip + limit < total;
+
+        res.status(200).json(new ApiResponse(200, {
             data: videos,
             pagination: {
                 total,
                 page,
-                pages: Math.ceil(total / limit)
+                pages: Math.ceil(total / limit),
+                hasMore
             }
-        },"fetched with limit and skip"))
+        }, "Fetched with limit and skip"));
     } catch (error) {
-       throw new ApiError(500,"error occured while fetching");
+        throw new ApiError(500, "Error occurred while fetching");
     }
-})
+});
+
 
 const deleteVideo=asyncHandler(async(req,res)=>{
     const {videoid}=req.params;
@@ -210,17 +213,30 @@ const getsinglevideo=asyncHandler(async(req,res)=>{
         _id,
         {
             $push: { watchHistory: id }
+          
         },
         {
             new: true,
             runValidators: true // Ensure the update operation adheres to schema validations
         }
-    )
-   
+    );
     if (!viewer) {
         throw new ApiError(500, "Failed to update watch history");
     }
-    console.log("added");  
+
+   const viewIncrease=await Video.findByIdAndUpdate(id,{
+    $inc: { views: 1 }
+   },  {
+    new: true,
+    runValidators: true // Ensure the update operation adheres to schema validations
+});
+
+if (!viewIncrease) {
+    throw new ApiError(500, "Failed to update view count");
+}
+
+   
+     
     return res.status(200).json(new ApiResponse(200,result,"video fetched successfuly"));
 })
 
@@ -348,8 +364,92 @@ const getallCommentsofavideo=asyncHandler(async(req,res)=>{
 })
 
 
+const getLike = asyncHandler(async (req, res) => {
+    const { videoId } = req.params;
 
-export {uploadvideo,getAllVideos,deleteVideo,getfeed,editVideoData,getallCommentsofavideo,getsinglevideo}
+    // Validate videoId
+    if (!mongoose.Types.ObjectId.isValid(videoId)) {
+        throw new ApiError(400, "Invalid video ID");
+    }
+
+    console.log('Video ID:', videoId); // Debug log
+
+    // Find video
+    const findVideo = await Video.findById(videoId);
+    if (!findVideo) {
+        throw new ApiError(404, "No video exists");
+    }
+
+    // Find existing like
+    const existingLike = await Like.findOne({
+        owner: req.user?._id,
+        video: videoId
+    });
+
+    if (existingLike) {
+        // Remove the like
+        await Like.findByIdAndDelete(existingLike._id);
+
+        // Update the video
+        const updatedVideo = await Video.findByIdAndUpdate(
+            videoId,
+            {
+                $pull: { likes: existingLike._id },
+                $inc: { likecount: -1 }
+            },
+            { new: true } // Return the updated document
+        );
+
+        if (!updatedVideo) {
+            throw new ApiError(500, "Error occurred while removing like from video");
+        }
+
+        console.log(updatedVideo.likecount);
+
+        return res.status(200).json(new ApiResponse(200, updatedVideo, "Like removed from video successfully"));
+    } else {
+        // Add a new like
+        const newLike = await Like.create({
+            owner: req.user?._id,
+            video: videoId
+        });
+
+        if (!newLike) {
+            throw new ApiError(500, "Error creating like");
+        }
+
+        // Update the video
+        const updatedVideo = await Video.findByIdAndUpdate(
+            videoId,
+            {
+                $push: { likes: newLike._id },
+                $inc: { likecount: +1 }
+            },
+            { new: true } // Return the updated document
+        );
+
+        if (!updatedVideo) {
+            throw new ApiError(500, "Error occurred while adding like to video");
+        }
+        console.log(updatedVideo.likecount);
+        return res.status(200).json(new ApiResponse(200, updatedVideo, "Like added to video successfully"));
+    }
+});
+
+
+const likeStatus=asyncHandler(async(req,res)=>{
+    const {videoId}=req.params;
+    const result=await Like.find({
+        owner:req.user?._id,
+        video:videoId
+    })
+    if(!result){
+        
+        return res.status(200).json(new ApiResponse(200,false,"like status not valid"));
+    }
+    return res.status(200).json(new ApiResponse(200,true,"like status fetched successfully"));
+})
+export {likeStatus,uploadvideo,getAllVideos,deleteVideo,getfeed,editVideoData,getallCommentsofavideo,getsinglevideo,getLike}
 
 
 
