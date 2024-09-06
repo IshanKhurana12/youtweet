@@ -5,7 +5,7 @@ import helmet from "helmet";
 
 const app=express();
 
-const allowedOrigins = ['http://localhost:5173', 'https://youtweet.onrender.com'];
+const allowedOrigins = ['http://localhost:5173', 'https://youtweet.onrender.com','https://youtweet-frontend.vercel.app'];
 
 // CORS configuration
 const corsOptions = {
