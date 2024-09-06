@@ -10,11 +10,28 @@ import crypto from "crypto";
 import nodemailer from "nodemailer";
 import {google} from  "googleapis"
 import { error } from "console";
-
+import { Otp } from "../models/otp.model.js";
+import e from "express";
 //mail verify feature
 const otpStorage = {};
-function generateOTP() {
-    const otp = crypto.randomInt(100000, 999999); 
+
+async function generateOTP(email) {
+    const otp = crypto.randomInt(100000, 999999);
+    const exist=await Otp.findOne({
+      email:email
+    });
+
+    if(exist){
+      await Otp.deleteOne({ email: email });
+    }
+    
+    const result=await Otp.create({
+      otp:otp,
+      email:email
+    }) 
+    if(!result){
+      throw new ApiError(500,"error creating otp");
+    }
     return otp;
 }
 
@@ -31,7 +48,7 @@ const oauth2Client = new google.auth.OAuth2(
 
   async function sendMail(email) {
     try {
-        const otp=generateOTP();
+        const otp=await generateOTP(email);
       const accessToken = await oauth2Client.getAccessToken(); // Get new access token
   
       // Create a Nodemailer transporter using OAuth2
@@ -57,8 +74,9 @@ const oauth2Client = new google.auth.OAuth2(
   
       // Send the email
       const result = await transporter.sendMail(mailOptions);
-      otpStorage[email] = otp;
-      setTimeout(() => delete otpStorage[email], 5 * 60 * 1000);
+ 
+    
+      
       return otp;
     } catch (error) {
       console.error('Error sending email:', error);
@@ -185,7 +203,7 @@ const mailsend=asyncHandler(async(req,res)=>{
   const generatedotp= await sendMail(result.email);
   if(generatedotp){
      console.log("otp is sent");
-  
+
     return res.status(200).json(new ApiResponse(200,true,"otp sent"));
   }
 
@@ -198,7 +216,12 @@ const mailsend=asyncHandler(async(req,res)=>{
 const setverified = asyncHandler(async (req, res) => {
     try {
       const { email, otp } = req.body; // Extract email and otp from the request body
-      const storedOtp = otpStorage[email]; // Fetch OTP from in-memory storage
+      const findotp = await Otp.findOne({
+        email:email
+      }) 
+      const storedOtp=findotp.otp;
+
+
   
       if (!storedOtp) {
         return res.status(400).json({ message: "OTP expired or invalid email." });
@@ -220,8 +243,7 @@ const setverified = asyncHandler(async (req, res) => {
         throw new ApiError(500, "Error updating verification status.");
       }
   
-      // Remove OTP from storage after successful verification
-      delete otpStorage[email];
+      await Otp.deleteOne({ email: email });
   
       // Respond to the client
       res.status(200).json({ message: "OTP verified, user is now verified." });
